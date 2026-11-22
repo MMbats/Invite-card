@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Charles & Mary - Ruracio Gate</title>
+
+<style>
+body {
+  margin:0;
+  font-family:system-ui,sans-serif;
+  font-size:18px;
+  background:#f3eeee;
+  color:#2B1B20;
+}
+main {
+  max-width:480px;
+  margin:0 auto;
+  padding:24px;
+}
+input,button {
+  font:inherit;
+  width:100%;
+  padding:16px;
+  margin-top:12px;
+  border-radius:6px;
+  border:2px solid #d8cbc8;
+  box-sizing:border-box;
+}
+input { background:#fff; }
+#code {
+  font-size:2.4rem;
+  text-align:center;
+  letter-spacing:.3em;
+}
+button {
+  background:#5B1F2E;
+  color:#fff;
+  border:0;
+  cursor:pointer;
+}
+button:disabled {
+  opacity:.6;
+  cursor:wait;
+}
+button.alt {
+  background:#fff;
+  color:#5B1F2E;
+  border:2px solid #5B1F2E;
+}
+#res {
+  margin-top:18px;
+  padding:18px;
+  border-radius:8px;
+  display:none;
+  color:#fff;
+}
+#res h2 { margin:0 0 6px; }
+#res p { margin:6px 0; }
+.ok { background:#2f6b3f; }
+.warn { background:#a86b00; }
+.bad { background:#9b1c1c; }
+</style>
+</head>
+
+<body>
+<main>
+  <h2>Charles & Mary Ruracio</h2>
+  <h3>Guest Gate Check-in</h3>
+
+  <div id="pinbox">
+    <p>Enter the usher access PIN.</p>
+    <input id="pin" type="password" placeholder="Gate PIN">
+    <button id="pinok">Unlock Gate</button>
+  </div>
+
+  <div id="tool" style="display:none">
+    <p>Enter the guest's 4-digit entry code.</p>
+    <input id="code" inputmode="numeric"
+      maxlength="4" placeholder="0000" autocomplete="off">
+
+    <button id="find">Check Guest</button>
+    <div id="res"></div>
+  </div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<script>
+const URL_ = 'https://dijfocsxfntgomudltwt.supabase.co';
+const KEY = 'sb_publishable_T_Gj8zFlNTux6BsCRYkmDQ_0D-ldeWM';
+
+const sb = supabase.createClient(URL_, KEY);
+
+const $ = id => document.getElementById(id);
+
+let pin = sessionStorage.getItem('pin') || '';
+
+const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({
+  '&':'&amp;',
+  '<':'&lt;',
+  '>':'&gt;',
+  '"':'&quot;',
+  "'":'&#39;'
+}[char]));
+
+function unlock() {
+  $('pinbox').style.display = 'none';
+  $('tool').style.display = 'block';
+  $('code').focus();
+}
+
+if (pin) unlock();
+
+$('pinok').onclick = () => {
+  pin = $('pin').value.trim();
+
+  if (!pin) {
+    alert('Please enter the gate PIN.');
+    return;
+  }
+
+  sessionStorage.setItem('pin', pin);
+  unlock();
+};
+
+function show(cls, html, allowEntry = false, guestCode = '') {
+  const result = $('res');
+
+  result.className = cls;
+  result.style.display = 'block';
+
+  result.innerHTML = html +
+    (allowEntry
+      ? '<button id="let" class="alt">Let Guest In and Mark Arrived</button>'
+      : '');
+
+  if (allowEntry) {
+    $('let').onclick = () => check(guestCode, true);
+  }
+}
+
+async function check(value, mark = false) {
+  const guestCode = String(value || '').trim();
+
+  if (!/^\d{4}$/.test(guestCode)) {
+    return show('warn', '<p>Please enter a valid 4-digit code.</p>');
+  }
+
+  $('find').disabled = true;
+
+  try {
+    const {data,error} = await sb.rpc('gate_check', {
+      p_code: guestCode,
+      p_pin: pin,
+      p_mark: mark
+    });
+
+    if (error) throw error;
+
+    if (!data) {
+      throw new Error('No response received.');
+    }
+
+    const who = `<h2>${esc(data.name)}</h2>`;
+
+    if (data.result === 'bad_pin') {
+      sessionStorage.removeItem('pin');
+      pin = '';
+      $('pinbox').style.display = 'block';
+      $('tool').style.display = 'none';
+
+      return show('bad', '<h2>Incorrect gate PIN</h2>');
+    }
+
+    if (data.result === 'not_found') {
+      return show(
+        'bad',
+        '<h2>CODE NOT VALID</h2><p>Do not admit this guest. Contact the event help desk.</p>'
+      );
+    }
+
+    if (data.result === 'already') {
+      return show(
+        'bad',
+        who +
+        `<p>ALREADY ARRIVED at ${esc(
+          new Date(data.at).toLocaleTimeString()
+        )}.</p><p>Contact the event supervisor.</p>`
+      );
+    }
+
+    if (data.result === 'ok') {
+      const car = Number(data.vehicles) > 0
+        ? `${esc(data.vehicles)} vehicle(s): ${esc(data.plates)}`
+        : 'No vehicle';
+
+      const info =
+        `<p><strong>People attending:</strong> ${esc(data.party)}</p>` +
+        `<p><strong>Vehicles:</strong> ${car}</p>`;
+
+      if (mark) {
+        show(
+          'ok',
+          who + '<p><strong>ARRIVAL RECORDED.</strong></p>' + info
+        );
+
+        $('code').value = '';
+      } else {
+        show('ok', who + info, true, guestCode);
+      }
+
+      return;
+    }
+
+    show('bad', '<p>Unexpected response. Contact the supervisor.</p>');
+
+  } catch (error) {
+    console.error(error);
+    show('bad', '<h2>Connection problem</h2><p>Please try again.</p>');
+  } finally {
+    $('find').disabled = false;
+  }
+}
+
+$('find').onclick = () => check($('code').value);
+
+$('code').onkeydown = event => {
+  if (event.key === 'Enter') {
+    check($('code').value);
+  }
+};
+</script>
+</body>
+</html>

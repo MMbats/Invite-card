@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ruracio Check-in</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Pinyon+Script&display=swap">
+<style>
+:root{--bg:#FAF6F5;--ink:#2B1B20;--wine:#5B1F2E;--sage:#7C8F7A;--gold:#B08D57;--line:#E6D9D6}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:'Cormorant Garamond',Georgia,serif;font-weight:500;font-variant-numeric:lining-nums;line-height:1.5;font-size:21px}
+main{padding:0 0 40px}
+.hero{position:relative;min-height:100vh;min-height:100svh;display:flex;align-items:center;justify-content:center;overflow:hidden;color:#fff;text-align:center}
+.slide{position:absolute;inset:0;background-size:cover;background-position:center;opacity:0;transition:opacity 1.6s ease}
+.slide.on{opacity:1}
+.hero::after{content:"";position:absolute;inset:0;background:linear-gradient(rgba(30,10,16,.3),rgba(30,10,16,.68))}
+.hero .wrap{position:relative;z-index:1;width:100%}
+.hero h1{font-family:'Pinyon Script','Snell Roundhand',cursive;color:#fff;font-size:clamp(3.6rem,17vw,5.6rem);font-weight:400;line-height:1.05;letter-spacing:0;margin:10px 0 18px}
+.hero .meta{color:#f6ebe8}
+.hero .cta{background:#fff;color:var(--wine)}
+.wrap{padding:28px 22px;text-align:center;max-width:560px;margin:0 auto}
+h1{font-size:2.4rem;font-weight:400;margin:6px 0;color:var(--wine);letter-spacing:.02em}
+h2{font-size:1.5rem;font-weight:400;margin:0 0 18px;color:var(--wine)}
+.meta{color:#6b5a5e;margin:2px 0}
+button{font:inherit;cursor:pointer;border:0;border-radius:4px}
+.cta{display:block;width:100%;margin-top:26px;padding:18px;background:var(--wine);color:#fff;font-size:1.15rem}
+.cta:focus-visible,.opt:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+.opts{display:flex;flex-wrap:wrap;gap:12px;justify-content:center}
+.opt{min-width:72px;padding:18px 20px;background:#fff;border:2px solid var(--line);font-size:1.3rem;color:var(--ink)}
+.opt.on{border-color:var(--wine);background:var(--wine);color:#fff}
+input,select{font:inherit;width:100%;padding:16px;border:2px solid var(--line);border-radius:4px;background:#fff;color:var(--ink)}
+.up{text-transform:uppercase}
+label{display:block;text-align:left;margin:0 0 16px;color:var(--wine);font-size:.95rem}
+label input,label select{margin-top:6px;color:var(--ink);font-size:1.1rem}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:420px){.row{grid-template-columns:1fr}}
+.back{background:none;color:#6b5a5e;margin-top:18px;text-decoration:underline;font-size:1rem}
+.prog{height:4px;background:var(--line);margin:0 0 24px}.prog i{display:block;height:100%;background:var(--gold)}
+.sum{text-align:left;background:#fff;border:1px solid var(--line);padding:6px 18px;margin:0 0 6px}
+.sum p{margin:12px 0}.sum b{color:var(--wine);font-weight:400}
+.code{font-size:4.5rem;letter-spacing:.2em;padding-left:.2em;color:var(--wine);margin:10px 0;line-height:1.1}
+#qr{display:inline-block;padding:14px;background:#fff;border:1px solid var(--line)}
+.err{color:#9b1c1c;margin-top:12px}
+</style>
+</head>
+<body>
+<main id="app"></main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script>
+/* ===== EDIT THESE ===== */
+const C = {
+  URL: 'https://dijfocsxfntgomudltwt.supabase.co',
+  KEY: 'sb_publishable_T_Gj8zFlNTux6BsCRYkmDQ_0D-ldeWM',
+  couple: 'Charles & Mary',
+  date: 'Saturday, 12 December 2026',
+  venue: 'Marmanet, Nyahururu',
+  photos: [
+    'images/photo1.jpg', 'images/photo2.jpg', 'images/photo3.jpg', 'images/photo4.jpg',
+    'images/photo5.jpg', 'images/photo6.jpg', 'images/photo7.jpg', 'images/photo8.jpg'
+  ]   // slideshow pictures, inside the "images" folder. Add or remove names here to change the slideshow.
+};
+/* ====================== */
+
+const $ = document.getElementById('app');
+const sb = supabase.createClient(C.URL, C.KEY);
+let guest = null, st = { plates: '' };
+
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const tones = ['#5B1F2E', '#7C8F7A', '#8a6a3b', '#3d2a33'];   // shown until the photos are added
+const slides = () => C.photos.map((p, i) =>
+  `<div class="slide ${i ? '' : 'on'}" style="background-color:${tones[i % tones.length]};background-image:url('${esc(p)}')"></div>`).join('');
+let timer;
+function startShow() {
+  clearInterval(timer);
+  const el = [...document.querySelectorAll('.slide')];
+  if (el.length < 2 || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  let i = 0;
+  timer = setInterval(() => { el[i].classList.remove('on'); i = (i + 1) % el.length; el[i].classList.add('on'); }, 5500);
+}
+
+async function init() {
+  // Public registration: no personal invitation token is required.
+  landing();
+}
+
+function landing() {
+  $.innerHTML = `<section class="hero">${slides()}<div class="wrap">
+    <p class="meta">You are invited to the Ruracio of</p>
+    <h1>${esc(C.couple)}</h1>
+    <p class="meta">${esc(C.date)}</p><p class="meta">${esc(C.venue)}</p>
+    <button class="cta" id="go">Click to check in</button></div></section>`;
+  document.getElementById('go').onclick = () => form();
+  startShow();
+}
+
+function form(err = '') {
+  clearInterval(timer);
+  const parts = (guest?.name || '').trim().split(' ');
+  const fn0 = parts.shift() || '', ln0 = parts.join(' ');
+  const partyOpts = Array.from({ length: 10 }, (_, i) => `<option>${i + 1}</option>`).join('');
+  $.innerHTML = `<div class="wrap"><h2>Your details</h2>
+    <div class="row">
+      <label>First name<input id="fn" value="${esc(st.fn ?? fn0)}" autocomplete="given-name"></label>
+      <label>Last name<input id="ln" value="${esc(st.ln ?? ln0)}" autocomplete="family-name"></label>
+    </div>
+    <label>Phone number<input id="ph" type="tel" value="${esc(st.ph ?? '')}" placeholder="07XX XXX XXX" autocomplete="tel"></label>
+    <label>Number of people coming (including you)<select id="party">${partyOpts}</select></label>
+    <label>Number of vehicles<select id="cars"><option>0</option><option>1</option><option>2</option><option>3</option><option>4</option></select></label>
+    <label id="plbox" style="display:none">Number plate(s), separate with commas<input id="pl" class="up" placeholder="KAA 123A, KBB 456B" autocomplete="off"></label>
+    <button class="cta" id="send">Confirm and get my code</button>
+    <div class="err" id="err">${esc(err)}</div></div>`;
+  const $$ = id => document.getElementById(id);
+  $$('party').value = st.party ?? 1;
+  $$('cars').value = st.cars ?? 0;
+  $$('pl').value = st.plates;
+  const sync = () => $$('plbox').style.display = +$$('cars').value > 0 ? 'block' : 'none';
+  $$('cars').onchange = sync; sync();
+
+  $$('send').onclick = async () => {
+    const fn = $$('fn').value.trim(), ln = $$('ln').value.trim(), ph = $$('ph').value.trim();
+    const party = +$$('party').value, cars = +$$('cars').value, plates = $$('pl').value.trim().toUpperCase();
+    st = { fn, ln, ph, party, cars, plates };
+    const bad = !fn ? 'Please enter your first name.' : !ln ? 'Please enter your last name.'
+      : ph.replace(/\D/g, '').length < 9 ? 'Please enter a valid phone number.'
+      : cars > 0 && !plates ? 'Please enter your number plate(s).' : '';
+    if (bad) return ($$('err').textContent = bad);
+    $$('send').disabled = true; $$('send').textContent = 'Saving…';
+    const { data, error } = await sb.rpc('confirm_guest', {
+      p_name: fn + ' ' + ln, p_phone: ph, p_party: party, p_vehicles: cars, p_plates: cars ? plates : ''
+    });
+    if (error || !data || !data.ok) return form('Could not save. Check your internet and try again.');
+    guest = { name: fn + ' ' + ln, status: 'confirmed', code: data.code }; done();
+  };
+}
+
+function done() {
+  clearInterval(timer);
+  $.innerHTML = `<div class="wrap"><h2>You’re checked in, ${esc(guest.name)}</h2>
+    <p class="meta">Your gate code is below. Show it at the gate, and take a screenshot so you have it offline.</p>
+    <div class="code">${esc(guest.code)}</div>
+    <p class="meta" style="margin-top:18px">${esc(C.date)} · ${esc(C.venue)}</p></div>`;
+}
+
+init();
+</script>
+</body>
+</html>
